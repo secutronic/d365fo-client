@@ -205,24 +205,30 @@ class BaseToolsMixin:
                 f"Key field count ({len(key_fields)}) doesn't match value count ({len(key_values)})",
             )
 
-        resolved_name = await self._resolve_entity_name(entity_name, profile)
-        if not resolved_name:
-            return (
-                False,
-                None,
-                f"Entity '{entity_name}' not found or not accessible for OData operations",
-            )
-
         try:
             client = await self._get_client(profile)
+            # Resolve the caller's input. This API accepts BOTH the entity name
+            # and the collection name. Keep the object, not just a string.
+            resolved = await client.get_public_entity_schema_by_entityset(entity_name)
+            if not resolved:
+                return (
+                    False,
+                    None,
+                    f"Entity '{entity_name}' not found or not accessible for OData "
+                    f"operations. Accepted forms: entity name (e.g. 'SystemUser') "
+                    f"or collection name (e.g. 'SystemUsers').",
+                )
+            # Single-record access takes the PUBLIC ENTITY name - upstream's own
+            # CLAUDE.md. resolved.name is that; resolved.entity_set_name is not.
             schema = await client.get_public_entity_info(
-                resolved_name, resolve_labels=False
+                resolved.name, resolve_labels=False
             )
             if not schema:
                 return (
                     False,
                     None,
-                    f"Could not retrieve schema for entity '{entity_name}'",
+                    f"Could not retrieve schema for '{resolved.name}' "
+                    f"(resolved from '{entity_name}')",
                 )
         except Exception as e:
             return (False, None, f"Error retrieving schema for '{entity_name}': {e}")
