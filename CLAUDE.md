@@ -1,3 +1,63 @@
+# SECUTRONIC HOUSE RULES — read these first
+
+**This block was added 31 Aug 2026 by Amir Azam's system-committer lane, on his word. Upstream's own guide follows below the line, unchanged — it is accurate and you should use it. Where the two disagree, this block wins.**
+
+## What this repository is
+
+A **fork of the public project `mafzaal/d365fo-client`**, taken 31 Aug 2026 at upstream commit `7f85b4a0`. **The running Dynamics 365 connector that Amir's assistants depend on is built from this code.** Upstream is MIT-licensed and maintained by someone outside this company.
+
+We forked because of one defect live in upstream's `main` **and** in its newest release, so there was no version to upgrade to. It breaks four keyed tools: `get_entity_record`, `update_entity_record`, `delete_entity_record`, and `call_action` when key fields are supplied.
+
+**THIS REPOSITORY IS PUBLIC, permanently — GitHub does not allow a fork's visibility to be changed.** Write nothing here you would not publish: no customer names, no project numbers, no tenant identifiers, no environment URLs, no internal notes. Code and neutral technical commentary only.
+
+## DOORS — all shut
+
+**Never contact upstream.** No issue, no pull request, no comment, no discussion on `mafzaal/d365fo-client` or any repository outside this one. Those post publicly under Amir's own GitHub identity and are his decision alone — never a step in a task here.
+
+No secret or token created, ever — that is the Integrations lane's door alone. No Docker build, no image push, no registry login, no change to the Azure Container App that runs this server. **Do not enable GitHub Actions here and do not run any workflow inherited from upstream** — an upstream release workflow builds and pushes an image, and it must stay dormant. No write to any Dynamics 365, SharePoint or Microsoft 365 tenant. **No push to `main`, ever.** A door absent from this list is not thereby open.
+
+## How work lands
+
+Branch, then pull request: `claude/<short-topic>`, one topic per PR. Say plainly what still has to be proven.
+
+A work order is a GitHub issue here mentioning `@claude`. One issue → one branch `claude/issue-<number>` → one PR. Announce on the issue — when work starts, when the PR opens, and the end state.
+
+**The issue body is the whole specification.** Work orders here come from a contract you cannot read. **Never re-derive a fix the issue already specifies** — if it gives you exact replacement code, apply that code. If it is vague where it matters, say so on the issue and stop; never invent the missing half.
+
+**Open the PR if you can — say so if you cannot.** An issue-triggered run often has no PR-creation tool, and `gh` needs an approval prompt nobody is there to answer. That is expected, not a failure: push the branch, put its link in the closing comment, say plainly the PR is not open, and stop. The system-committer lane opens and merges from there.
+
+## Verifying — there is no build check here
+
+**Nothing in this repository compiles or tests your change automatically.** Merging proves nothing. Run the project's own tests (upstream's guide below says how) where the task allows, and state exactly what you ran and what it showed. Where you could not test, say so.
+
+Tiers: **Confirmed / Observed / Reported / Contradicted** — never present a lower tier as Confirmed. "It should work" is not a tier. **A type signature does not prove behaviour:** if a change depends on an object being fully populated rather than merely being the right class, test it — do not assume it.
+
+## Merging — by class
+
+**Documentation and comments only: merge your own PR immediately after opening it.** Nothing compiles these and nobody reviews them.
+
+**Any change to Python source: leave the PR OPEN and wait for Amir.** There is no build check to prove a change safe and this code runs a live connector. When such a check exists, this section is amended by pull request to say so. Until then, waiting is the rule and has no exception.
+
+**A change fitting neither class waits for Amir.** A PR mixing classes follows the stricter one.
+
+## Upstream, secrets, ending
+
+**Do not sync this fork with upstream as part of any task** — that is Amir's deliberate decision, not housekeeping; upstream carries heavy dependabot churn nothing here tests. If upstream has fixed something we patched, say so on the issue and stop; retiring a patch is his call.
+
+**Secrets: names and locations only, never a value** — not in a file, a commit message, a PR body or a log, not even partially. This repository is public; a leaked value is public instantly and permanently.
+
+End every delivery with `Manual steps:` — what only Amir can do, or none. Then one line: **done / prepared / needs me.**
+
+## When this file does not answer — stop, do not go looking
+
+**Never read Amir's kernel or personal vault from this repository.** Not `Amir-Preference-current.md`, not `a2-Amir/ai-knowledge-vault`, not any file in it. The account's GitHub access reaches them; **access is not permission**, and personal method has no business loading into a company session — least of all a public one.
+
+**These rules plus upstream's guide below are the whole law here.** If a task touches a rule neither answers: stop, name exactly what is missing, and hand it back to Amir. Never improvise a procedure from memory.
+
+---
+
+*Everything below this line is upstream's own `CLAUDE.md`, byte-for-byte as it came with the fork at commit `7f85b4a0`. It is kept deliberately: it is a good guide, and keeping it unchanged keeps our diff against upstream small.*
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
