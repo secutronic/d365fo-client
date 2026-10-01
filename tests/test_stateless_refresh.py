@@ -117,6 +117,33 @@ class TestProviderAfterRestart:
 
         assert token is stored
 
+    async def test_rotated_out_token_stays_refused(self, restarted_provider):
+        client = await restarted_provider.get_client(CLIENT_ID)
+        token = await restarted_provider.load_refresh_token(client, ENTRA_REFRESH_TOKEN)
+        rotate = AsyncMock(return_value=dict(UPSTREAM_RESPONSE))
+        with patch(REFRESH, new=rotate):
+            await restarted_provider.exchange_refresh_token(client, token, token.scopes)
+
+        replay = await restarted_provider.load_refresh_token(
+            client, ENTRA_REFRESH_TOKEN
+        )
+        rotated = await restarted_provider.load_refresh_token(
+            client, "rotated-entra-refresh-token"
+        )
+
+        assert replay is None
+        assert rotated is not None and rotated.client_id == CLIENT_ID
+        # A real restart forgets the retired set; Entra decides then.
+        assert await make_provider().load_refresh_token(client, ENTRA_REFRESH_TOKEN)
+
+    async def test_revoked_token_stays_refused(self, restarted_provider):
+        client = await restarted_provider.get_client(CLIENT_ID)
+        token = await restarted_provider.load_refresh_token(client, "to-revoke")
+
+        await restarted_provider.revoke_token(token)
+
+        assert await restarted_provider.load_refresh_token(client, "to-revoke") is None
+
     async def test_exchange_refused_upstream_is_invalid_grant(self, restarted_provider):
         client = await restarted_provider.get_client(CLIENT_ID)
         token = await restarted_provider.load_refresh_token(client, ENTRA_REFRESH_TOKEN)
@@ -200,6 +227,25 @@ class TestTokenEndpointAfterRestart:
 
         assert response.status_code == 400, response.text
         assert response.json()["error"] == "invalid_grant"
+
+    def test_replayed_rotated_token_is_refused_without_upstream_call(self):
+        provider = make_provider()
+        app = make_token_app(provider)
+        form = {
+            "grant_type": "refresh_token",
+            "refresh_token": ENTRA_REFRESH_TOKEN,
+            "client_id": CLIENT_ID,
+        }
+
+        upstream = AsyncMock(return_value=dict(UPSTREAM_RESPONSE))
+        with patch(REFRESH, new=upstream), TestClient(app) as http:
+            first = http.post("/token", data=form)
+            replay = http.post("/token", data=form)
+
+        assert first.status_code == 200, first.text
+        assert replay.status_code == 400, replay.text
+        assert replay.json()["error"] == "invalid_grant"
+        upstream.assert_awaited_once()
 
     def test_known_client_still_requires_its_secret(self):
         provider = make_provider()

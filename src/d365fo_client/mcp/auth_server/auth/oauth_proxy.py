@@ -342,6 +342,10 @@ class OAuthProxy(OAuthProvider):
         self._access_to_refresh: dict[str, str] = {}
         self._refresh_to_access: dict[str, str] = {}
 
+        # SHA-256 of refresh tokens this process rotated out or revoked, so they
+        # stay refused rather than being forwarded upstream as unknown tokens
+        self._retired_refresh_hashes: set[str] = set()
+
         # OAuth transaction storage for IdP callback forwarding
         self._oauth_transactions: dict[str, dict[str, Any]] = (
             {}
@@ -392,7 +396,7 @@ class OAuthProxy(OAuthProvider):
         client = self._clients.get(client_id)
         if client is None:
             logger.info(
-                "Unknown client %s (e.g. registered before a restart); "
+                "Unknown client %r (e.g. registered before a restart); "
                 "using a synthesized public client",
                 client_id,
             )
@@ -682,18 +686,19 @@ class OAuthProxy(OAuthProvider):
         The refresh token handed to clients is the upstream IdP's own token, and
         local storage is lost on restart. An unknown token is therefore wrapped
         as-is so exchange_refresh_token() forwards it upstream and the IdP
-        decides; a refused token still ends in invalid_grant.
+        decides; a refused token still ends in invalid_grant. Tokens this
+        process rotated out or revoked stay refused, as before.
         """
         stored = self._refresh_tokens.get(refresh_token)
         if stored is not None:
             return stored
 
-        if client.client_id is None:
+        if client.client_id is None or self._is_retired(refresh_token):
             return None
 
         scopes = client.scope.split() if client.scope else (self.required_scopes or [])
         logger.debug(
-            "Refresh token not in local storage (client: %s); forwarding upstream",
+            "Refresh token not in local storage (client: %r); forwarding upstream",
             client.client_id,
         )
         return RefreshToken(
@@ -702,6 +707,16 @@ class OAuthProxy(OAuthProvider):
             scopes=list(scopes),
             expires_at=None,
         )
+
+    @staticmethod
+    def _token_hash(token: str) -> str:
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    def _retire_refresh_token(self, token: str) -> None:
+        self._retired_refresh_hashes.add(self._token_hash(token))
+
+    def _is_retired(self, token: str) -> bool:
+        return self._token_hash(token) in self._retired_refresh_hashes
 
     async def exchange_refresh_token(
         self,
@@ -759,6 +774,7 @@ class OAuthProxy(OAuthProvider):
             if new_refresh_token != refresh_token.token:
                 # Remove old refresh token
                 self._refresh_tokens.pop(refresh_token.token, None)
+                self._retire_refresh_token(refresh_token.token)
                 old_access = self._refresh_to_access.pop(refresh_token.token, None)
                 if old_access:
                     self._access_to_refresh.pop(old_access, None)
@@ -809,9 +825,11 @@ class OAuthProxy(OAuthProvider):
             paired_refresh = self._access_to_refresh.pop(token.token, None)
             if paired_refresh:
                 self._refresh_tokens.pop(paired_refresh, None)
+                self._retire_refresh_token(paired_refresh)
                 self._refresh_to_access.pop(paired_refresh, None)
         else:  # RefreshToken
             self._refresh_tokens.pop(token.token, None)
+            self._retire_refresh_token(token.token)
             # Also remove associated access token
             paired_access = self._refresh_to_access.pop(token.token, None)
             if paired_access:
